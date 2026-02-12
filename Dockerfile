@@ -5,12 +5,15 @@ WORKDIR /
 # Install system dependencies
 RUN apt-get update && apt-get install -y git ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install them
+# Install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download model only (Avoids OOM error during build)
-RUN python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='facebook/seamless-m4t-v2-large')"
+# Download model using HuggingFace CLI (More stable for 10GB+ files)
+RUN huggingface-cli download facebook/seamless-m4t-v2-large --local-dir /container_cache/seamless-m4t-v2-large --local-dir-use-symlinks False
+
+# Set environment variable for the model path
+ENV MODEL_PATH=/container_cache/seamless-m4t-v2-large
 
 COPY handler.py .
 

@@ -6,18 +6,19 @@ import io
 import os
 from transformers import SeamlessM4Tv2Model, AutoProcessor
 
-# Check GPU and Load Model
+# Check GPU and path
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_PATH = os.environ.get("MODEL_PATH", "facebook/seamless-m4t-v2-large")
+
 processor = None
 model = None
 
 def load_models():
     global processor, model
     if model is None:
-        print("Loading models from local cache...")
-        model_id = "facebook/seamless-m4t-v2-large"
-        processor = AutoProcessor.from_pretrained(model_id)
-        model = SeamlessM4Tv2Model.from_pretrained(model_id).to(DEVICE)
+        print(f"Loading models from {MODEL_PATH}...")
+        processor = AutoProcessor.from_pretrained(MODEL_PATH)
+        model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE)
         print("Models loaded successfully!")
 
 def handler(job):
