@@ -6,9 +6,8 @@ import io
 import os
 from transformers import SeamlessM4Tv2Model, AutoProcessor
 
-# Check GPU and path
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_PATH = os.environ.get("MODEL_PATH", "facebook/seamless-m4t-v2-large")
+MODEL_PATH = os.environ.get("MODEL_PATH", "/model_data")
 
 processor = None
 model = None
@@ -24,7 +23,6 @@ def load_models():
 def handler(job):
     load_models()
     job_input = job['input']
-    
     audio_b64 = job_input.get("audio")
     src_lang = job_input.get("src_lang", "eng")
     tgt_lang = job_input.get("tgt_lang", "ben")
@@ -37,14 +35,11 @@ def handler(job):
         audio_data = resampler(audio_data)
     
     audio_inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE)
-    
     with torch.no_grad():
         output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang)[0]
     
     out_io = io.BytesIO()
     torchaudio.save(out_io, output_tokens.cpu(), 16000, format="wav")
-    out_b64 = base64.b64encode(out_io.getvalue()).decode('utf-8')
-    
-    return {"audio_out": out_b64}
+    return {"audio_out": base64.b64encode(out_io.getvalue()).decode('utf-8')}
 
 runpod.serverless.start({"handler": handler})
