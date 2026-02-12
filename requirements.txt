@@ -1,0 +1,6 @@
+runpod
+torch
+torchaudio
+transformers
+sentencepiece
+numpy
