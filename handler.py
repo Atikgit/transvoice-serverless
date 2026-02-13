@@ -45,9 +45,9 @@ def handler(job):
     # ID 0 = সাধারণত ভারী/পুরুষালি ভয়েস
     # ID 1 = সাধারণত চিকন/মেয়েলি ভয়েস (SeamlessM4T v2 Preset)
     if "male" in voice_tone:
-        speaker_id = 0  # Male (ID 0 রাখলাম কারণ আপনি বললেন এখন যেটা আসছে সেটা Male)
+        speaker_id = 0  
     else:
-        speaker_id = 4  # Female (ID 4 বা 1 ফিমেল টোনের জন্য ভালো কাজ করে)
+        speaker_id = 1  # 4 এর বদলে 1 ব্যবহার করা হলো
 
     # 4. Audio Processing
     try:
