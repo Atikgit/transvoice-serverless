@@ -38,17 +38,16 @@ def handler(job):
     src_lang = job_input.get("src_lang", "eng")
     tgt_lang = job_input.get("tgt_lang", "ben")
     
-    # হাইব্রিড স্পিকার লজিক (Male/Female)
-    # ভয়েস টোন ইনপুট না থাকলে ডিফল্ট 'female' ধরে নিবে
+    # হাইব্রিড স্পিকার লজিক (Male/Female Fix)
     voice_tone = job_input.get("voice_tone", "female").lower()
     
-    # 3. Speaker ID Selection (Speed Hack)
-    # আমরা নির্দিষ্ট ID ব্যবহার করছি যাতে ক্লোনিং এর সময় নষ্ট না হয়
-    # SeamlessM4T তে সাধারণত কম নাম্বারের ID গুলো ক্লিন ভয়েস হয়
+    # [UPDATED ID MAPPING]
+    # ID 0 = সাধারণত ভারী/পুরুষালি ভয়েস
+    # ID 1 = সাধারণত চিকন/মেয়েলি ভয়েস (SeamlessM4T v2 Preset)
     if "male" in voice_tone:
-        speaker_id = 1  # Male Preset (Experimental ID)
+        speaker_id = 0  # Male (ID 0 রাখলাম কারণ আপনি বললেন এখন যেটা আসছে সেটা Male)
     else:
-        speaker_id = 0  # Female/Neutral Preset (Best Quality)
+        speaker_id = 4  # Female (ID 4 বা 1 ফিমেল টোনের জন্য ভালো কাজ করে)
 
     # 4. Audio Processing
     try:
