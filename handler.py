@@ -36,7 +36,7 @@ def handler(job):
     # ID 6 = Male (Clean)
     # ID 10 = Female (Clean)
     if "male" in voice_tone:
-        speaker_id = 6
+        speaker_id = 3
     else:
         speaker_id = 10 
 
