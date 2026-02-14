@@ -15,10 +15,11 @@ model = None
 def load_models():
     global processor, model
     if model is None:
+        print(f"Loading models from {MODEL_PATH}...")
+        # FP16 বাদ দিয়ে অরিজিনাল float32 রাখা হলো স্ট্যাবিলিটির জন্য
         processor = AutoProcessor.from_pretrained(MODEL_PATH)
-        # FP16 (Half) ব্যবহার করা হয়েছে স্পিড বাড়ানোর জন্য
-        model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE).half()
-        print("Optimized FP16 Model Loaded!")
+        model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE)
+        print("Models loaded successfully!")
 
 def handler(job):
     load_models()
@@ -27,11 +28,17 @@ def handler(job):
     audio_b64 = job_input.get("audio")
     src_lang = job_input.get("src_lang", "eng")
     tgt_lang = job_input.get("tgt_lang", "ben")
+    
+    # ভয়েস টোন হ্যান্ডলিং
     voice_tone = job_input.get("voice_tone", "female").lower()
     
-    # Speaker ID: এখানে ক্লোনিং বাদ দিয়ে সরাসরি আইডি ব্যবহার করা হচ্ছে
-    # ID 6 = ক্লিন পুরুষ ভয়েস, ID 10 = ক্লিন মহিলা ভয়েস
-    speaker_id = 6 if "male" in voice_tone else 10
+    # Speaker ID: (Cloning বাদ দেওয়া হয়েছে স্পিড বাড়ানোর জন্য)
+    # ID 6 = Male (Clean)
+    # ID 10 = Female (Clean)
+    if "male" in voice_tone:
+        speaker_id = 6
+    else:
+        speaker_id = 10 
 
     try:
         audio_bytes = base64.b64decode(audio_b64)
@@ -41,11 +48,10 @@ def handler(job):
             resampler = torchaudio.transforms.Resample(orig_freq, 16000)
             audio_data = resampler(audio_data)
         
-        # ইনপুট ডাটাকেও half precision এ নেওয়া হয়েছে
-        audio_inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE).half()
+        # Standard Precision (Stable)
+        audio_inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE)
         
-        # inference_mode() কোনো গ্রাডিয়েন্ট ক্যালকুলেট করে না, তাই এটি দ্রুততম
-        with torch.inference_mode():
+        with torch.no_grad():
             output_tokens = model.generate(
                 **audio_inputs, 
                 tgt_lang=tgt_lang,
@@ -53,12 +59,13 @@ def handler(job):
             )[0]
         
         out_io = io.BytesIO()
-        # আউটপুট সেভ করার সময় আবার float এ নিতে হয় অডিও ফাইলের জন্য
-        torchaudio.save(out_io, output_tokens.cpu().float(), 16000, format="wav")
+        torchaudio.save(out_io, output_tokens.cpu(), 16000, format="wav")
+        out_b64 = base64.b64encode(out_io.getvalue()).decode('utf-8')
         
-        return {"audio_out": base64.b64encode(out_io.getvalue()).decode('utf-8')}
+        return {"audio_out": out_b64}
 
     except Exception as e:
+        print(f"Error: {str(e)}")
         return {"error": str(e)}
 
 runpod.serverless.start({"handler": handler})
