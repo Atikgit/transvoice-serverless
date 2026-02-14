@@ -6,7 +6,6 @@ import io
 import os
 from transformers import SeamlessM4Tv2Model, AutoProcessor
 
-# 1. Device & Model Path Setup
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_PATH = os.environ.get("MODEL_PATH", "/model_data")
 
@@ -16,71 +15,50 @@ model = None
 def load_models():
     global processor, model
     if model is None:
-        print(f"Loading models from {MODEL_PATH}...")
-        try:
-            processor = AutoProcessor.from_pretrained(MODEL_PATH)
-            model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE)
-            print("Models loaded successfully!")
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            # Fallback if local path fails (Safety net)
-            processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
-            model = SeamlessM4Tv2Model.from_pretrained("facebook/seamless-m4t-v2-large").to(DEVICE)
+        processor = AutoProcessor.from_pretrained(MODEL_PATH)
+        # FP16 (Half) ব্যবহার করা হয়েছে স্পিড বাড়ানোর জন্য
+        model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE).half()
+        print("Optimized FP16 Model Loaded!")
 
 def handler(job):
-    # Ensure models are loaded
     load_models()
-    
     job_input = job['input']
     
-    # 2. Input Parsing
     audio_b64 = job_input.get("audio")
     src_lang = job_input.get("src_lang", "eng")
     tgt_lang = job_input.get("tgt_lang", "ben")
-    
-    # হাইব্রিড স্পিকার লজিক (Male/Female Fix)
     voice_tone = job_input.get("voice_tone", "female").lower()
     
-    # [UPDATED ID MAPPING]
-    # ID 0 = সাধারণত ভারী/পুরুষালি ভয়েস
-    # ID 1 = সাধারণত চিকন/মেয়েলি ভয়েস (SeamlessM4T v2 Preset)
-    if "male" in voice_tone:
-        speaker_id = 1  
-    else:
-        speaker_id = 2
+    # Speaker ID: এখানে ক্লোনিং বাদ দিয়ে সরাসরি আইডি ব্যবহার করা হচ্ছে
+    # ID 6 = ক্লিন পুরুষ ভয়েস, ID 10 = ক্লিন মহিলা ভয়েস
+    speaker_id = 6 if "male" in voice_tone else 10
 
-    # 4. Audio Processing
     try:
         audio_bytes = base64.b64decode(audio_b64)
         audio_data, orig_freq = torchaudio.load(io.BytesIO(audio_bytes))
         
-        # Resample to 16kHz (Required by model)
         if orig_freq != 16000:
             resampler = torchaudio.transforms.Resample(orig_freq, 16000)
             audio_data = resampler(audio_data)
         
-        # Prepare inputs
-        audio_inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE)
+        # ইনপুট ডাটাকেও half precision এ নেওয়া হয়েছে
+        audio_inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE).half()
         
-        # 5. Generate Audio (With Speaker ID Force)
-        # speaker_id পাস করার ফলে এটি ইনপুট অডিওর নয়েজ বা টোন কপি করবে না
-        # এতে 'Robotic Voice' সমস্যা দূর হবে এবং স্পিড বাড়বে
-        with torch.no_grad():
+        # inference_mode() কোনো গ্রাডিয়েন্ট ক্যালকুলেট করে না, তাই এটি দ্রুততম
+        with torch.inference_mode():
             output_tokens = model.generate(
                 **audio_inputs, 
                 tgt_lang=tgt_lang,
-                speaker_id=speaker_id 
+                speaker_id=speaker_id
             )[0]
         
-        # 6. Output Conversion
         out_io = io.BytesIO()
-        torchaudio.save(out_io, output_tokens.cpu(), 16000, format="wav")
-        out_b64 = base64.b64encode(out_io.getvalue()).decode('utf-8')
+        # আউটপুট সেভ করার সময় আবার float এ নিতে হয় অডিও ফাইলের জন্য
+        torchaudio.save(out_io, output_tokens.cpu().float(), 16000, format="wav")
         
-        return {"audio_out": out_b64}
+        return {"audio_out": base64.b64encode(out_io.getvalue()).decode('utf-8')}
 
     except Exception as e:
-        print(f"Processing Error: {str(e)}")
         return {"error": str(e)}
 
 runpod.serverless.start({"handler": handler})
