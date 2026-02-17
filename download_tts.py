@@ -18,8 +18,13 @@ TARGET_LANGS = {
     'jpn': ['ja', 'jpn'],         # Japanese
     'kor': ['ko', 'kor'],         # Korean
     'ind': ['id', 'ind']          # Indonesian
+    
 }
 
+MANUAL_LINKS = {
+    "ben": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ben.tar.bz2",
+    "urd": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-urd.tar.bz2"
+}
 BASE_DIR = "/tts_models"
 if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
 
