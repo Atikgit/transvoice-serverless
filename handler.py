@@ -9,67 +9,58 @@ import sherpa_onnx
 import soundfile as sf
 from transformers import SeamlessM4Tv2Model, AutoProcessor
 
+# কনফিগারেশন
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_PATH = "/model_data"
 TTS_BASE_PATH = "/tts_models"
 
+# গ্লোবাল ভ্যারিয়েবল
 processor = None
 model = None
 tts_engines = {}
 
-# ভাষা কোড ম্যাপিং (RunPod থেকে আসা ৩-অক্ষর -> মডেলের ২-অক্ষর)
-ISO_MAP = {
-    'ben': 'bn', 'hin': 'hi', 'ara': 'ar', 'urd': 'ur', 
-    'spa': 'es', 'fra': 'fr', 'deu': 'de', 'ita': 'it',
-    'jpn': 'ja', 'kor': 'ko', 'vie': 'vi', 'ind': 'id',
-    'tur': 'tr', 'eng': 'en'
-}
-
-def load_seamless():
+def load_models():
     global processor, model
     if model is None:
-        print("--- Loading SeamlessM4T v2 Large ---")
+        print("--- STARTING MODEL LOAD ---")
         processor = AutoProcessor.from_pretrained(MODEL_PATH)
         model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE)
-        print("--- SeamlessM4T Loaded Successfully ---")
+        print("--- SEAMLESSM4T LOADED ---")
 
 def get_tts_engine(lang_code):
     if lang_code in tts_engines:
         return tts_engines[lang_code]
 
-    print(f"DEBUG: Searching TTS for [{lang_code}]")
+    print(f"DEBUG: Searching for language: {lang_code}")
     
-    # ফোল্ডার খোঁজার চেষ্টা (Piper বা MMS যাই হোক)
-    search_codes = [lang_code]
-    if lang_code in ISO_MAP:
-        search_codes.append(ISO_MAP[lang_code])
-    
+    # ৩-অক্ষর থেকে ২-অক্ষরের কোড কনভারশন (যেমন: deu -> de)
+    short_map = {'ben': 'bn', 'ara': 'ar', 'hin': 'hi', 'urd': 'ur', 'spa': 'es', 'fra': 'fr', 'deu': 'de', 'rus': 'ru'}
+    search_codes = [lang_code, short_map.get(lang_code, lang_code)]
+
     folder_path = None
     for code in search_codes:
+        # ভেরিয়েশন চেক করা (যেমন: vits-mms-deu বা vits-piper-de_DE)
         pattern = os.path.join(TTS_BASE_PATH, f"vits-*-{code}*")
-        found_folders = glob.glob(pattern)
-        if found_folders:
-            folder_path = found_folders[0]
+        found = glob.glob(pattern)
+        if found:
+            folder_path = found[0]
             break
 
-    if not folder_path or not os.path.exists(folder_path):
-        print(f"ERROR: No model folder found for code {lang_code} in {TTS_BASE_PATH}")
+    if not folder_path:
+        print(f"ERROR: No TTS folder found for {lang_code} in {TTS_BASE_PATH}")
         return None
 
-    print(f"DEBUG: Found folder -> {folder_path}")
-
-    # ফোল্ডারের ভেতর ফাইলগুলো খুঁজে বের করা
+    # ফাইলের অস্তিত্ব চেক করা
     onnx_files = glob.glob(os.path.join(folder_path, "*.onnx"))
     tokens_file = os.path.join(folder_path, "tokens.txt")
-    data_dir = os.path.join(folder_path, "espeak-ng-data")
+    data_dir = os.path.join(folder_path, "espeak-ng-data") # Piper মডেলের জন্য জরুরি
 
     if not onnx_files or not os.path.exists(tokens_file):
         print(f"ERROR: Missing .onnx or tokens.txt in {folder_path}")
-        print(f"Folder Content: {os.listdir(folder_path)}")
         return None
 
     try:
-        # 'argument ids' এরর ঠেকাতে সরাসরি কনফিগ সেট করা
+        # 'argument ids' এরর এড়াতে নির্দিষ্টভাবে প্যারামিটার পাস করা
         vits_config = sherpa_onnx.OfflineTtsVitsModelConfig(
             model=onnx_files[0],
             tokens=tokens_file,
@@ -85,46 +76,48 @@ def get_tts_engine(lang_code):
         
         engine = sherpa_onnx.OfflineTts(tts_config)
         tts_engines[lang_code] = engine
-        print(f"SUCCESS: Loaded TTS engine for {lang_code}")
+        print(f"SUCCESS: {lang_code} TTS Engine Loaded!")
         return engine
     except Exception as e:
-        print(f"CRITICAL ERROR loading engine: {str(e)}")
+        print(f"CRITICAL TTS ERROR: {str(e)}")
         return None
 
 def handler(job):
-    load_seamless()
+    load_models()
     job_input = job['input']
     audio_b64 = job_input.get("audio")
     src_lang = job_input.get("src_lang", "eng").lower()
     tgt_lang = job_input.get("tgt_lang", "ben").lower()
 
     if not audio_b64:
-        return {"error": "No audio provided"}
+        return {"error": "Missing audio input"}
 
     try:
-        # ১. অডিও ডিকোড ও রিস্যাম্পল
+        # ১. অডিও প্রসেসিং
         audio_bytes = base64.b64decode(audio_b64)
-        audio_data, orig_freq = torchaudio.load(io.BytesIO(audio_bytes))
-        if orig_freq != 16000:
-            audio_data = torchaudio.transforms.Resample(orig_freq, 16000)(audio_data)
+        audio_data, samplerate = torchaudio.load(io.BytesIO(audio_bytes))
+        if samplerate != 16000:
+            audio_data = torchaudio.transforms.Resample(samplerate, 16000)(audio_data)
 
-        # ২. টেক্সট ট্রান্সলেশন
+        # ২. অনুবাদ (SeamlessM4T)
         inputs = processor(audios=audio_data, src_lang=src_lang, return_tensors="pt").to(DEVICE)
         with torch.no_grad():
-            tokens = model.generate(**inputs, tgt_lang=tgt_lang, generate_speech=False)
-        translated_text = processor.decode(tokens[0].tolist(), skip_special_tokens=True)
-        print(f"DEBUG: Translation Result -> {translated_text}")
+            output_tokens = model.generate(**inputs, tgt_lang=tgt_lang, generate_speech=False)
+        translated_text = processor.decode(output_tokens[0].tolist(), skip_special_tokens=True)
+        print(f"TRANSLATED: {translated_text}")
 
-        # ৩. ভয়েস জেনারেশন
+        # ৩. ভয়েস (Sherpa-ONNX)
         engine = get_tts_engine(tgt_lang)
         if engine:
             audio = engine.generate(translated_text, sid=0, speed=1.0)
             out_io = io.BytesIO()
             sf.write(out_io, audio.samples, audio.sample_rate, format='wav')
-            audio_out = base64.b64encode(out_io.getvalue()).decode('utf-8')
-            return {"audio_out": audio_out, "text_out": translated_text}
+            return {
+                "audio_out": base64.b64encode(out_io.getvalue()).decode('utf-8'),
+                "text_out": translated_text
+            }
         
-        return {"error": f"TTS engine failed for {tgt_lang}", "text_out": translated_text}
+        return {"error": f"TTS Engine not available for {tgt_lang}", "text_out": translated_text}
 
     except Exception as e:
         print(f"HANDLER CRASH: {str(e)}")
