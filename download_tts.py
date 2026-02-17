@@ -1,71 +1,90 @@
 import os
 import urllib.request
+import json
 import tarfile
-import shutil
 
-# --- Sherpa-ONNX Verified 96+ Language Models ---
-TTS_MODELS = {
-    # দক্ষিণ এশীয় ভাষা (South Asian - Verified)
-    "ben": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ben.tar.bz2",
-    "hin": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-hin.tar.bz2",
-    "asm": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-asm.tar.bz2",
-    "guj": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-guj.tar.bz2",
-    "kan": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-kan.tar.bz2",
-    "mal": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-mal.tar.bz2",
-    "mar": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-mar.tar.bz2",
-    "nep": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-nep.tar.bz2",
-    "pan": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-pan.tar.bz2",
-    "tam": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tam.tar.bz2",
-    "tel": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tel.tar.bz2",
-    "urd": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-urd.tar.bz2",
-
-    # পূর্ব এশিয়া ও অন্যান্য (East Asia & Global)
-    "ara": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ara.tar.bz2",
-    "jpn": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-jpn.tar.bz2",
-    "kor": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-kor.tar.bz2",
-    "vie": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-vie.tar.bz2",
-    "ind": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ind.tar.bz2",
-    "tur": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tur.tar.bz2",
-    "por": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-por.tar.bz2",
-    "ita": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ita.tar.bz2"
+# আপনার কাঙ্খিত ভাষার লিস্ট (ISO Code)
+TARGET_LANGS = {
+    'ben': ['bn', 'ben'],         # Bengali
+    'hin': ['hi', 'hin'],         # Hindi
+    'ara': ['ar', 'ara', 'arb'],  # Arabic
+    'urd': ['ur', 'urd'],         # Urdu
+    'vie': ['vi', 'vie'],         # Vietnamese
+    'tur': ['tr', 'tur'],         # Turkish
+    'spa': ['es', 'spa'],         # Spanish
+    'fra': ['fr', 'fra'],         # French
+    'deu': ['de', 'deu'],         # German
+    'eng': ['en', 'eng'],         # English
+    'jpn': ['ja', 'jpn'],         # Japanese
+    'kor': ['ko', 'kor'],         # Korean
+    'ind': ['id', 'ind']          # Indonesian
 }
 
-# নোট: ৯৬টি লিঙ্ক এখানে অনেক বড় হবে। আমি প্রধান সব ভাষা দিয়েছি। 
-# যদি কোনো একটিতে 404 আসে, স্ক্রিপ্টটি অটোমেটিক `mms-vits` এর পরিবর্তে Piper ফরম্যাট চেক করবে।
-
 BASE_DIR = "/tts_models"
-if not os.path.exists(BASE_DIR):
-    os.makedirs(BASE_DIR)
+if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
 
-print(f"🔄 Starting setup for {len(TTS_MODELS)} critical languages...")
-
-for lang, url in TTS_MODELS.items():
+def get_release_assets():
+    """GitHub API থেকে রিয়েল-টাইম ফাইলের লিস্ট নিয়ে আসা"""
+    print("🔍 Fetching latest model list from GitHub API...")
+    url = "https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/tags/tts-models"
     try:
-        filename = url.split("/")[-1]
-        file_path = os.path.join(BASE_DIR, filename)
-        
-        # ডবল চেক: যদি অলরেডি থাকে, নামাবে না
-        if os.path.exists(os.path.join(BASE_DIR, filename.replace(".tar.bz2", ""))):
-            print(f"⏭️ Skipping [{lang}], already exists.")
-            continue
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read())
+            # শুধু ফাইলের নাম এবং ডাউনলোড লিংকের ডিকশনারি রিটার্ন করবে
+            return {asset['name']: asset['browser_download_url'] for asset in data['assets']}
+    except Exception as e:
+        print(f"❌ API Error: {e}")
+        return {}
 
-        print(f"📥 Downloading [{lang}]...")
-        # গিটহাব থেকে সরাসরি নামাতে অনেক সময় User-Agent না দিলে ব্লক করে
-        opener = urllib.request.build_opener()
-        opener.addheaders = [('User-agent', 'Mozilla/5.0')]
-        urllib.request.install_opener(opener)
-        
+def download_and_extract(url, lang_code):
+    filename = url.split("/")[-1]
+    file_path = os.path.join(BASE_DIR, filename)
+    print(f"📥 Downloading [{lang_code}]: {filename}...")
+    
+    try:
         urllib.request.urlretrieve(url, file_path)
-        
-        print(f"📦 Extracting [{lang}]...")
+        print(f"📦 Extracting [{lang_code}]...")
         with tarfile.open(file_path, "r:bz2") as tar:
             tar.extractall(path=BASE_DIR)
-        
         os.remove(file_path)
-        print(f"✅ [{lang}] Ready!")
-        
+        print(f"✅ [{lang_code}] Success!")
+        return True
     except Exception as e:
-        print(f"⚠️ [{lang}] failed with URL: {url}. Error: {e}")
-        # এখানে রিট্রাই লজিক যোগ করা যেতে পারে যদি নাম পরিবর্তন হয়
+        print(f"❌ Failed to download {filename}: {e}")
+        return False
 
-print("🚀 Process Finished. RunPod will now Rollout.")
+# মেইন প্রসেস
+assets = get_release_assets()
+if not assets:
+    print("⚠️ No assets found from API. Check internet connection.")
+    exit(1)
+
+print(f"Found {len(assets)} available models in release.")
+
+for lang, codes in TARGET_LANGS.items():
+    found = False
+    
+    # ১. প্রথমে Piper মডেল খোঁজা (বেস্ট কোয়ালিটি)
+    for code in codes:
+        # যেমন: vits-piper-en_US...
+        piper_match = next((name for name in assets if f"vits-piper-{code}" in name), None)
+        if piper_match:
+            download_and_extract(assets[piper_match], lang)
+            found = True
+            break
+            
+    # ২. Piper না পেলে MMS মডেল খোঁজা
+    if not found:
+        for code in codes:
+            # যেমন: vits-mms-ben...
+            mms_match = next((name for name in assets if f"vits-mms-{code}" in name), None)
+            if mms_match:
+                download_and_extract(assets[mms_match], lang)
+                found = True
+                break
+    
+    if not found:
+        print(f"⚠️ Skipping [{lang}]: No model found in release assets matching codes {codes}")
+
+print("--- Setup Finished ---")
