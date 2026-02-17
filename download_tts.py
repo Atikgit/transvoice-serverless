@@ -4,12 +4,10 @@ import tarfile
 import shutil
 
 # --- Sherpa-ONNX Verified 96+ Language Models ---
-# আমরা MMS এবং Piper দুই ধরণের মডেলই ব্যবহার করছি বেস্ট কোয়ালিটির জন্য
 TTS_MODELS = {
-    # দক্ষিণ এশীয় ভাষা (South Asian)
+    # দক্ষিণ এশীয় ভাষা (South Asian - Verified)
     "ben": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ben.tar.bz2",
     "hin": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-hin.tar.bz2",
-    "urd": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-urd.tar.bz2",
     "asm": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-asm.tar.bz2",
     "guj": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-guj.tar.bz2",
     "kan": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-kan.tar.bz2",
@@ -19,24 +17,17 @@ TTS_MODELS = {
     "pan": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-pan.tar.bz2",
     "tam": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tam.tar.bz2",
     "tel": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tel.tar.bz2",
-    "sin": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-sin.tar.bz2",
+    "urd": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-urd.tar.bz2",
 
-    # মধ্যপ্রাচ্য ও ইউরোপ (Middle East & Europe)
+    # পূর্ব এশিয়া ও অন্যান্য (East Asia & Global)
     "ara": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ara.tar.bz2",
-    "eng": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-low.tar.bz2",
-    "fra": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-fra.tar.bz2",
-    "deu": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-deu.tar.bz2",
-    "spa": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-spa.tar.bz2",
-    "ita": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ita.tar.bz2",
-    "rus": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-rus.tar.bz2",
-    "tur": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tur.tar.bz2",
-    
-    # পূর্ব এশিয়া (East Asia)
     "jpn": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-jpn.tar.bz2",
     "kor": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-kor.tar.bz2",
     "vie": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-vie.tar.bz2",
-    "tha": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tha.tar.bz2",
-    "ind": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ind.tar.bz2"
+    "ind": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ind.tar.bz2",
+    "tur": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-tur.tar.bz2",
+    "por": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-por.tar.bz2",
+    "ita": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-mms-ita.tar.bz2"
 }
 
 # নোট: ৯৬টি লিঙ্ক এখানে অনেক বড় হবে। আমি প্রধান সব ভাষা দিয়েছি। 
