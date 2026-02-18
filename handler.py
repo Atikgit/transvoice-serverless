@@ -9,12 +9,11 @@ import sherpa_onnx
 import soundfile as sf
 from transformers import SeamlessM4Tv2Model, AutoProcessor
 
-# কনফিগারেশন
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_PATH = "/model_data"
 TTS_BASE_PATH = "/tts_models"
 
-print(f"--- Using Sherpa-ONNX Version: {sherpa_onnx.__version__} ---")
+print(f"--- Sherpa-ONNX Version: {sherpa_onnx.__version__} ---")
 
 processor = None
 model = None
@@ -26,50 +25,44 @@ def load_models():
         print("Loading SeamlessM4T...")
         processor = AutoProcessor.from_pretrained(MODEL_PATH)
         model = SeamlessM4Tv2Model.from_pretrained(MODEL_PATH).to(DEVICE)
-        print("SeamlessM4T Loaded.")
+        print("SeamlessM4T Ready.")
 
 def get_tts_engine(lang_code):
     if lang_code in tts_engines:
         return tts_engines[lang_code]
 
-    print(f"Finding TTS for: {lang_code}")
-    
-    # ভাষা ম্যাপিং (Official Image স্টান্ডার্ড)
+    # ভাষা কোড ম্যাপিং (spa -> es, deu -> de)
     iso_map = {'spa': 'es', 'deu': 'de', 'ben': 'bn', 'hin': 'hi', 'ara': 'ar', 'rus': 'ru', 'eng': 'en'}
     search_code = iso_map.get(lang_code, lang_code)
     
     # ফোল্ডার খোঁজা
     pattern = os.path.join(TTS_BASE_PATH, f"*{search_code}*")
     folders = glob.glob(pattern)
+    
     if not folders:
         print(f"❌ No folder found for {lang_code}")
         return None
-    
+        
     target_folder = folders[0]
-    onnx_file = glob.glob(os.path.join(target_folder, "*.onnx"))[0]
-    tokens_file = os.path.join(target_folder, "tokens.txt")
-    
-    # Piper মডেলের জন্য data_dir খুবই গুরুত্বপূর্ণ
-    data_dir = os.path.join(target_folder, "espeak-ng-data")
-    
+    print(f"📂 Found: {target_folder}")
+
     try:
-        # অফিশিয়াল ইমেজে এই কনফিগারেশনটি কাজ করবেই
+        onnx_file = glob.glob(os.path.join(target_folder, "*.onnx"))[0]
+        tokens_file = os.path.join(target_folder, "tokens.txt")
+        data_dir = os.path.join(target_folder, "espeak-ng-data")
+
+        # বেসিক কনফিগারেশন (কোনো জটিল আর্গুমেন্ট নেই)
         vits_config = sherpa_onnx.OfflineTtsVitsModelConfig(
             model=onnx_file,
             tokens=tokens_file,
-            data_dir=data_dir if os.path.exists(data_dir) else "",
-            noise_scale=0.667,
-            noise_scale_w=0.8,
-            length_scale=1.0
+            data_dir=data_dir if os.path.exists(data_dir) else ""
         )
         tts_config = sherpa_onnx.OfflineTtsConfig(
-            model=sherpa_onnx.OfflineTtsModelConfig(vits=vits_config),
-            max_num_sentences=1
+            model=sherpa_onnx.OfflineTtsModelConfig(vits=vits_config)
         )
         
         engine = sherpa_onnx.OfflineTts(tts_config)
         tts_engines[lang_code] = engine
-        print(f"✅ Engine Ready: {lang_code}")
         return engine
     except Exception as e:
         print(f"🔥 Error loading {lang_code}: {e}")
