@@ -3,6 +3,6 @@ torch
 torchaudio
 transformers
 accelerate
-faster-whisper
 sentencepiece
+faster-whisper
 protobuf
