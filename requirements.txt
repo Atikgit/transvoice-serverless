@@ -2,7 +2,7 @@ runpod
 torch
 torchaudio
 transformers
-huggingface_hub
-scipy
-soundfile
-numpy
+accelerate
+sentencepiece
+faster-whisper
+protobuf
