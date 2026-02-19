@@ -67,7 +67,12 @@ stt_model = WhisperModel("medium", device=DEVICE, compute_type="float16", downlo
 
 print("🚀 Loading MADLAD-400 (Translation)... This will take a few minutes the first time.")
 tokenizer = T5Tokenizer.from_pretrained('google/madlad400-3b-mt', cache_dir=PATHS["trans"])
-trans_model = T5ForConditionalGeneration.from_pretrained('google/madlad400-3b-mt', cache_dir=PATHS["trans"]).to(DEVICE)
+trans_model = T5ForConditionalGeneration.from_pretrained(
+    'google/madlad400-3b-mt', 
+    cache_dir=PATHS["trans"], 
+    torch_dtype=torch.float16, 
+    low_cpu_mem_usage=True
+).to(DEVICE)
 
 print("✅ ALL SYSTEMS READY & LOADED")
 
